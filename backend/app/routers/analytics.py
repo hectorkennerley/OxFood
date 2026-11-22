@@ -98,8 +98,11 @@ def dashboard(college_id: int = HOME_COLLEGE_ID, session: Session = Depends(get_
     links = [(0, 1, cooked), (0, 2, trim), (0, 3, spoil), (1, 4, served), (1, 5, over), (4, 6, eaten), (4, 7, serv),
              (4, 8, plate), (5, 9, rec[("overproduction", True)]), (5, 10, rec[("overproduction", False)]),
              (7, 9, rec[("servery_leftover", True)]), (7, 10, rec[("servery_leftover", False)])]
-    sankey = {"nodes": [{"name": n} for n in nodes],
-              "links": [{"source": a, "target": b, "value": round(v, 1)} for a, b, v in links if v > 0.05]}
+    links = [(a, b, v) for a, b, v in links if v > 0.05]
+    used = sorted({i for a, b, _ in links for i in (a, b)})
+    remap = {old: new for new, old in enumerate(used)}
+    sankey = {"nodes": [{"name": nodes[i], "key": i} for i in used],
+              "links": [{"source": remap[a], "target": remap[b], "value": round(v, 1)} for a, b, v in links]}
 
     # Alerts
     expiring = session.exec(select(InventoryLot, Product).join(Product).where(

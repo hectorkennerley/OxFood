@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 
 from app.models import InventoryLot, Product, StorageUnit
 
+UNIT_LABEL = {"fridge": "fridge", "freezer": "freezer", "dry": "dry store"}
 STORAGE_FOR = {"chilled": "fridge", "frozen": "freezer", "dry": "dry", "ambient": "dry"}
 
 
@@ -46,7 +47,7 @@ def fit_check(session: Session, college_id: int, product: Product, packs: float)
     need = round(product.volume_l * packs, 1)
     best = max(usage, key=lambda u: u["free_l"], default=None)
     if best is None:
-        return {"fits": False, "need_l": need, "unit_type": unit_type, "reason": f"No {unit_type} space recorded"}
+        return {"fits": False, "need_l": need, "unit_type": UNIT_LABEL[unit_type], "reason": f"No {unit_type} space recorded"}
     fits = best["free_l"] >= need
     warnings = []
     if product.hazard_class in ("raw_meat", "raw_fish"):
@@ -54,7 +55,7 @@ def fit_check(session: Session, college_id: int, product: Product, packs: float)
     if product.hazard_class == "allergen_nuts":
         warnings.append("Contains nuts: keep sealed and segregated.")
     return {
-        "fits": fits, "need_l": need, "unit_type": unit_type, "unit_id": best["id"], "unit_name": best["name"],
+        "fits": fits, "need_l": need, "unit_type": UNIT_LABEL[unit_type], "unit_id": best["id"], "unit_name": best["name"],
         "free_l": best["free_l"], "free_after_l": round(best["free_l"] - need, 1), "warnings": warnings,
         "reason": (f"Needs {need} l in the {best['name'].lower()}, which has {best['free_l']} l free."
                    if fits else f"Needs {need} l but the {best['name'].lower()} only has {best['free_l']} l free."),

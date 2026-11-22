@@ -300,7 +300,10 @@ def seed() -> None:
                     attended = int(booked * min(1.0, show + rng.uniform(-0.05, 0.05))) if past else 0
                     golive = offset >= -GO_LIVE_DAYS_AGO
                     if golive:
-                        planned = int(booked * min(1.0, show + (0.04 if ev in ("formal_hall", "guest_night") else 0.07)))
+                        # Kitchens get better at trusting the forecast week by week after go-live
+                        weeks_live = (offset + GO_LIVE_DAYS_AGO) // 7
+                        buf = max(0.03, 0.15 - 0.035 * weeks_live) if ev not in ("formal_hall", "guest_night") else 0.03
+                        planned = int(booked * min(1.0, show + buf))
                     else:
                         planned = int(booked * 1.05)
                     svc = Service(college_id=col.id, date=d, meal=meal, event_type=ev, booked=booked, attended=attended,
@@ -367,6 +370,24 @@ def seed() -> None:
                                                      logged_at=logged - timedelta(hours=5), method="seed", disposition="discard",
                                                      note=f"{prod.name} past use-by"))
         s.add_all(waste_rows)
+        s.flush()
+
+        # Past student sales of surplus at the home college (last 7 days) so revenue KPIs have history
+        for w in waste_rows:
+            if (w.college_id == home.id and w.disposition == "offer_students" and w.recipe_id
+                    and w.logged_at.date() >= today - timedelta(days=6) and w.portions_est >= 2):
+                r = next(x for x in recipes.values() if x.id == w.recipe_id)
+                price = max(1.0, round(r.sell_price * 0.5 * 2) / 2)
+                sold = max(1, int(w.portions_est * rng.uniform(0.6, 1.0)))
+                lst = SurplusListing(college_id=home.id, kind="meal_to_students", recipe_id=r.id, waste_event_id=w.id,
+                                     title=r.name, qty=w.portions_est, qty_remaining=w.portions_est - sold, price=price,
+                                     created_at=w.logged_at, available_until=w.logged_at + timedelta(minutes=90),
+                                     status="closed")
+                s.add(lst)
+                s.flush()
+                for k in range(sold):
+                    s.add(Claim(listing_id=lst.id, student_pseudo_id=rng.choice(students).pseudo_id, qty=1, amount_gbp=price,
+                                pickup_code=f"{rng.randint(100, 999)}", created_at=w.logged_at + timedelta(minutes=5 + 3 * k)))
 
         # Orders + inventory lots for every college
         order_cache = {}
