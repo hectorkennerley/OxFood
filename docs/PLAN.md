@@ -6,6 +6,8 @@ Oxford colleges waste food at every stage: over-ordering from distributors, spoi
 - near-effortless waste logging on a kitchen tablet (voice/camera, our own Winnow-style capture)
 - recovery of surplus as paid student meals (Too Good To Go / UVA free-food-alert) or inter-college transfers
 
+**Revision:** the organisers reminded us the product must be **feasible and able to make enough money to scale**. So this plan now includes a business model (see "Business model & feasibility", with no figures yet). An `/impact` revenue page is prepared for but only gets built when the user asks.
+
 The repo is empty apart from a README, LICENSE and a Python .gitignore. Branch: `claude/nice-edison-a638eu`.
 
 **Decisions made:** Python FastAPI + SQLite backend with a React frontend · Claude API on **`claude-haiku-5-5`** only (user pays personally) · demo on **one laptop, several browser windows** · all historical data fabricated by a seed script.
@@ -15,6 +17,7 @@ The repo is empty apart from a README, LICENSE and a Python .gitignore. Branch: 
 - **Human scientist:** in the first hour, ideally a 10-minute chat with a college chef or catering manager (real quotes beat anything). Also owns:
   - nudge wording for student alerts (scarcity, fairness)
   - impact metrics with sources (WRAP hospitality waste figures, a CO2e-per-kg factor)
+  - **owns the business model:** asks the catering manager for food spend and covers so we have real numbers to fill in later, and drafts the business-model slide
   - the **privacy/ethics** of ID-scan attendance (GDPR: pseudonymise, aggregate for forecasting, opt-in notifications)
   - the pitch narrative and slides
 - **French & Spanish student:**
@@ -42,7 +45,8 @@ backend/                      FastAPI + SQLModel + SQLite (oxfood.db, regenerate
     storage.py                capacity + "what can be stored with what" compatibility
     recovery.py               rule table: supplier/kitchen issue → recovery suggestions
     foodbuy_csv.py            order → CSV
-    ai.py                     Haiku 5.5 wrapper: cache, call cap, kill switch, rule fallback
+    ai.py                     Haiku 5.5 wrapper: cache, call cap, kill switch, rule fallback, AI cost counter
+    billing.py                (deferred) pricing config → college ROI + platform revenue; build when asked
   tests/test_services.py
 frontend/                     Vite + React + TS + Tailwind + React Router + TanStack Query + Recharts + lucide-react
   vite.config.ts              proxy /api → localhost:8000
@@ -124,7 +128,8 @@ Add `node_modules/`, `.env`, `*.db` and `frontend/dist/` to `.gitignore`. Live u
 10. **`/menu` Menu & recipes**
     - Recipe stages and required appliances.
     - **Next-day breakfast/lunch suggestions.** A rule-based score (uses near-expiry lots and today's chillable surplus, cost per portion, appliances available, staff count) ranks recipes. Then one Haiku call writes the rationale and a suggested price.
-11. **`/journey/:lotId` Ontology view** — the timeline for one lot: ordered → delivered (with any issue) → stored → used in recipe/service → leftover → redistributed or wasted. This is the "Foundry" moment in the pitch.
+11. **`/impact` ROI & revenue: DEFERRED, build only when the user says so.** Prepare for it now: `ai.py` counts AI calls and their cost, and every sale or transfer records its value, so the page can be added later without changing the data model. When it's built, it has two tabs: a college view (what the college saved and earned, minus the subscription) and an OxFood view (fee revenue across colleges, costs, margin). All prices stay as config values, with no numbers hard-coded.
+12. **`/journey/:lotId` Ontology view** — the timeline for one lot: ordered → delivered (with any issue) → stored → used in recipe/service → leftover → redistributed or wasted. This is the "Foundry" moment in the pitch.
 
 ### Food-reuse rules engine (`safety_rules.py`)
 Inputs: stage, left_kitchen, minutes since cooked, hot-held ≥63°C, already reheated, high-risk (rice/seafood), blast chiller available, past use-by / best-before. Outputs: allowed dispositions with reasons:
@@ -172,16 +177,46 @@ I commit and push after each tier, so the CS teammate can `git pull` and test on
 4. **Student window:** notification pops → reserve.
 5. **Marketplace:** Keble's near-expiry frozen chicken thighs fit our freezer → buy.
 6. **Dashboard updates:** kg diverted, £ recovered. Open the chicken lot's **journey**.
-7. **Commercialisation + beyond colleges.**
+7. **Business model slide:** revenue streams, low costs, scale path from Oxford to contract caterers, risks answered. Add the `/impact` page to the demo here once it's built.
 
-## Commercialisation (pitch content)
-- **"Found money":** colleges charge for meals that would otherwise be binned (Too Good To Go model). OxFood takes a 10–20% cut of redistributed-meal and inter-college transfer revenue, plus a per-kitchen SaaS fee. Procurement savings from better forecasting come on top.
-- **Wedge → expansion:** Oxford colleges → Cambridge and other collegiate universities, boarding schools, hospitals.
-- **Professional services:** law-firm and bank staff restaurants run by contract caterers (Compass — Foodbuy's parent — Sodexo, BaxterStorey).
-  - Hybrid work makes covers unpredictable, so desk-booking and badge-swipe data take the place of college bookings and ID scans. Multi-site estates get the same inter-site marketplace.
-  - Waste data feeds ESG/CSRD reporting.
-  - EU (FR/ES) regulation creates compliance-driven demand, and the tablet is already trilingual.
-- **Against Winnow:** we're software-first (any tablet plus any scale), and we connect upstream to procurement and downstream to redistribution, not just measurement.
+## Business model & feasibility (revenue that scales)
+The test is whether OxFood can make enough money to grow. Our answer: *it costs a kitchen less than the waste it removes, and as software with no hardware, each extra kitchen costs us very little.* All prices and figures are left open for now. The team fills them in with real data later.
+
+### Why a kitchen pays
+Three kinds of value, each pointed out in the app:
+- **Purchasing saved:** better forecasts and suggested orders mean less food bought.
+- **New income:** surplus meals sold to students, and near-expiry stock sold to other colleges.
+- **Waste costs avoided:** less food binned and less disposal.
+
+### How OxFood earns money
+| Stream | Model | Why it scales |
+|---|---|---|
+| Subscription per kitchen (core) | Monthly fee, a free pilot period, discounts for multi-site groups | Recurring and predictable. No hardware. |
+| Fee on redistributed student meals | A small percentage per sale, priced to undercut Too Good To Go | Grows with use. The college keeps most of the money it would otherwise never have seen. |
+| Fee on inter-college or inter-site stock transfers | A small percentage of each transfer's value | Network effect: every new kitchen adds buyers and sellers. |
+| Later: food-waste reporting add-on | Monthly add-on | Regulation in Spain, France and the UK turns reporting into a must-have. |
+
+### Why our costs stay low
+Each kitchen uses its own tablet and any scale, so there's no hardware or installation. AI runs on Claude Haiku, the cheapest model, and costs very little. The main real costs are onboarding a kitchen (loading its menus, recipes and suppliers) and support.
+
+### Scale path
+1. **Oxford colleges** to prove it works: one pilot college, then a case study, then other colleges through the domestic bursars' network.
+2. **Cambridge and other universities** with halls or catering: same product, same kind of buyer.
+3. **Contract caterers** (e.g. Compass, Sodexo, BaxterStorey) running schools, hospitals and corporate staff restaurants: one deal covers many sites, and our Foodbuy CSV already fits Compass's ordering. This is where the real revenue is. Oxford alone is too small to be the business.
+4. **France and Spain:** new laws push kitchens to cut waste, and the tablet is already in French and Spanish.
+
+### Professional services fit
+In corporate staff restaurants, hybrid working makes it hard to know how many people will eat. Desk-booking and badge-swipe data do the job of college bookings and ID scans. Multi-site estates can share stock through the same marketplace, and the waste data feeds their sustainability reporting.
+
+### Feasibility risks and our answers
+| Risk | Answer |
+|---|---|
+| Chefs won't log | Three taps or one spoken sentence, in their language. Teddy Hall already logs with Winnow. |
+| Food-safety liability for resold meals | The college sells under its own food-safety plan. OxFood applies FSA-based rules and keeps an audit trail. |
+| GDPR on ID-scan data | Pseudonymised and aggregated. Students opt in to alerts. |
+| Integrations take time | No integrations needed to start: CSV out to Foodbuy, CSV in from booking systems. |
+| Oxford market is small | It's the proof point. Contract caterers are the scale. |
+| Competitors (Winnow, Leanpath, Too Good To Go) | Each covers one stage. We connect ordering, kitchen, redistribution and the marketplace, with no hardware. |
 
 ## Verification
 - `pytest backend/tests` covers safety rules, forecast, suggested order + storage fit, Foodbuy CSV, AI fallback with `AI_MODE=off`.
